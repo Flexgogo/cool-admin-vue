@@ -6,7 +6,7 @@
 					<el-button type="success" @click="open">{{ $t('添加') }}</el-button>
 					<el-button
 						type="danger"
-						:disabled="refs.table?.selection.length == 0"
+						:disabled="!refs.table?.selection || refs.table.selection.length === 0"
 						@click="remove()"
 					>
 						{{ $t('移除') }}
@@ -347,11 +347,20 @@ async function selectAll() {
 // 移除
 function remove() {
 	if (props.pickerType == 'table') {
-		const ids = ((refs.table?.selection || []) as any[]).map(e => e[dict.id]);
+		// 安全检查：确保refs.table存在且有selection属性
+		const tableRef = refs.table;
+		if (!tableRef || !tableRef.selection) {
+			console.warn('Table ref is not available or has no selection');
+			return;
+		}
+		
+		const ids = (tableRef.selection || []).map(e => e[dict.id]);
 
 		list.value = list.value.filter(e => {
-			// 清空选择状态
-			refs.table?.toggleRowSelection(e, false);
+			// 清空选择状态 - 添加安全检查
+			if (tableRef && typeof tableRef.toggleRowSelection === 'function') {
+				tableRef.toggleRowSelection(e, false);
+			}
 
 			// 移除已选的
 			return !ids.find(id => id == e[dict.id]);
@@ -373,11 +382,72 @@ watch(
 			emit('update:modelValue', ids[0]);
 		}
 
-		Form.value?.validateField(props.prop);
+		// 安全检查：确保Form存在且有validateField方法，并且props.prop存在
+		if (Form.value && typeof Form.value.validateField === 'function' && props.prop) {
+			Form.value.validateField(props.prop);
+		}
 	},
 	{
 		deep: true
 	}
+);
+
+// 监听外部modelValue变化，同步更新内部list
+watch(
+	() => props.modelValue,
+	async (newValue) => {
+		if (newValue === null || newValue === undefined) {
+			list.value = [];
+			return;
+		}
+
+		// 如果当前list已经包含了对应的数据，不需要重新加载
+		const currentIds = list.value.map(e => e[dict.id]);
+		const newIds = props.multiple ? (Array.isArray(newValue) ? newValue : [newValue]) : [newValue];
+		
+		// 检查是否需要更新
+		const needUpdate = newIds.some(id => !currentIds.includes(id)) || 
+						   currentIds.some(id => !newIds.includes(id));
+		
+		if (!needUpdate) {
+			return;
+		}
+
+		// 如果有service，尝试从服务器获取完整数据
+		if (props.service && newIds.length > 0) {
+			try {
+				// 获取完整的数据信息
+				const promises = newIds.map(async (id) => {
+					// 检查是否已经在list中
+					const existing = list.value.find(item => item[dict.id] === id);
+					if (existing) {
+						return existing;
+					}
+					
+					// 从服务器获取数据
+					try {
+						const result = await props.service.info({ id });
+						return result;
+					} catch (error) {
+						console.warn(`Failed to load item with id ${id}:`, error);
+						// 如果获取失败，创建一个基本对象
+						return { [dict.id]: id, [dict.text]: `ID: ${id}` };
+					}
+				});
+				
+				const items = await Promise.all(promises);
+				list.value = items.filter(Boolean);
+			} catch (error) {
+				console.warn('Failed to load items:', error);
+				// 如果服务调用失败，创建基本对象
+				list.value = newIds.map(id => ({ [dict.id]: id, [dict.text]: `ID: ${id}` }));
+			}
+		} else {
+			// 没有service时，创建基本对象
+			list.value = newIds.map(id => ({ [dict.id]: id, [dict.text]: `ID: ${id}` }));
+		}
+	},
+	{ immediate: true }
 );
 
 defineExpose({

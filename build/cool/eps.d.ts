@@ -502,6 +502,48 @@ declare namespace Eps {
 		[key: string]: any;
 	}
 
+	interface PictureDateEntity {
+		/**
+		 * ID
+		 */
+		id?: number;
+
+		/**
+		 * 日期
+		 */
+		date?: Date;
+
+		/**
+		 * 图片
+		 */
+		picture?: string;
+
+		/**
+		 * 状态
+		 */
+		status?: number;
+
+		/**
+		 * 备注
+		 */
+		remark?: string;
+
+		/**
+		 * 创建时间
+		 */
+		createTime?: string;
+
+		/**
+		 * 更新时间
+		 */
+		updateTime?: string;
+
+		/**
+		 * 任意键值
+		 */
+		[key: string]: any;
+	}
+
 	interface PluginInfoEntity {
 		/**
 		 * ID
@@ -639,6 +681,110 @@ declare namespace Eps {
 		 * 姓名
 		 */
 		userName?: string;
+
+		/**
+		 * 任意键值
+		 */
+		[key: string]: any;
+	}
+
+	interface ShopCategoryEntity {
+		/**
+		 * ID
+		 */
+		id?: number;
+
+		/**
+		 * 图片
+		 */
+		pic?: string;
+
+		/**
+		 * 分类名称
+		 */
+		name?: string;
+
+		/**
+		 * 描述
+		 */
+		description?: string;
+
+		/**
+		 * 状态
+		 */
+		status?: number;
+
+		/**
+		 * 排序
+		 */
+		orderNum?: number;
+
+		/**
+		 * 创建时间
+		 */
+		createTime?: string;
+
+		/**
+		 * 更新时间
+		 */
+		updateTime?: string;
+
+		/**
+		 * 任意键值
+		 */
+		[key: string]: any;
+	}
+
+	interface ShopGoodsEntity {
+		/**
+		 * ID
+		 */
+		id?: number;
+
+		/**
+		 * 图片
+		 */
+		pic?: string;
+
+		/**
+		 * 名称
+		 */
+		name?: string;
+
+		/**
+		 * 分类ID
+		 */
+		categoryId?: number;
+
+		/**
+		 * 状态
+		 */
+		status?: number;
+
+		/**
+		 * 描述
+		 */
+		description?: string;
+
+		/**
+		 * 排序
+		 */
+		orderNum?: number;
+
+		/**
+		 * 创建时间
+		 */
+		createTime?: string;
+
+		/**
+		 * 更新时间
+		 */
+		updateTime?: string;
+
+		/**
+		 * 分类名称
+		 */
+		categoryName?: string;
 
 		/**
 		 * 任意键值
@@ -1713,6 +1859,68 @@ declare namespace Eps {
 		request: Service["request"];
 	}
 
+	interface PictureDate {
+		/**
+		 * 删除
+		 */
+		delete(data?: any): Promise<any>;
+
+		/**
+		 * 修改
+		 */
+		update(data?: any): Promise<any>;
+
+		/**
+		 * 单个信息
+		 */
+		info(data?: any): Promise<PictureDateEntity>;
+
+		/**
+		 * 列表查询
+		 */
+		list(data?: any): Promise<PictureDateEntity[]>;
+
+		/**
+		 * 分页查询
+		 */
+		page(data?: any): Promise<{
+			pagination: { size: number; page: number; total: number; [key: string]: any };
+			list: PictureDateEntity[];
+			[key: string]: any;
+		}>;
+
+		/**
+		 * 新增
+		 */
+		add(data?: any): Promise<any>;
+
+		/**
+		 * 权限标识
+		 */
+		permission: {
+			delete: string;
+			update: string;
+			info: string;
+			list: string;
+			page: string;
+			add: string;
+		};
+
+		/**
+		 * 权限状态
+		 */
+		_permission: {
+			delete: boolean;
+			update: boolean;
+			info: boolean;
+			list: boolean;
+			page: boolean;
+			add: boolean;
+		};
+
+		request: Service["request"];
+	}
+
 	interface PluginInfo {
 		/**
 		 * 安装插件
@@ -1811,6 +2019,130 @@ declare namespace Eps {
 		 * 权限状态
 		 */
 		_permission: { restore: boolean; info: boolean; page: boolean };
+
+		request: Service["request"];
+	}
+
+	interface ShopCategory {
+		/**
+		 * 删除
+		 */
+		delete(data?: any): Promise<any>;
+
+		/**
+		 * 修改
+		 */
+		update(data?: any): Promise<any>;
+
+		/**
+		 * 单个信息
+		 */
+		info(data?: any): Promise<ShopCategoryEntity>;
+
+		/**
+		 * 列表查询
+		 */
+		list(data?: any): Promise<ShopCategoryEntity[]>;
+
+		/**
+		 * 分页查询
+		 */
+		page(data?: any): Promise<{
+			pagination: { size: number; page: number; total: number; [key: string]: any };
+			list: ShopCategoryEntity[];
+			[key: string]: any;
+		}>;
+
+		/**
+		 * 新增
+		 */
+		add(data?: any): Promise<any>;
+
+		/**
+		 * 权限标识
+		 */
+		permission: {
+			delete: string;
+			update: string;
+			info: string;
+			list: string;
+			page: string;
+			add: string;
+		};
+
+		/**
+		 * 权限状态
+		 */
+		_permission: {
+			delete: boolean;
+			update: boolean;
+			info: boolean;
+			list: boolean;
+			page: boolean;
+			add: boolean;
+		};
+
+		request: Service["request"];
+	}
+
+	interface ShopGoods {
+		/**
+		 * 删除
+		 */
+		delete(data?: any): Promise<any>;
+
+		/**
+		 * 修改
+		 */
+		update(data?: any): Promise<any>;
+
+		/**
+		 * 单个信息
+		 */
+		info(data?: any): Promise<ShopGoodsEntity>;
+
+		/**
+		 * 列表查询
+		 */
+		list(data?: any): Promise<ShopGoodsEntity[]>;
+
+		/**
+		 * 分页查询
+		 */
+		page(data?: any): Promise<{
+			pagination: { size: number; page: number; total: number; [key: string]: any };
+			list: ShopGoodsEntity[];
+			[key: string]: any;
+		}>;
+
+		/**
+		 * 新增
+		 */
+		add(data?: any): Promise<any>;
+
+		/**
+		 * 权限标识
+		 */
+		permission: {
+			delete: string;
+			update: string;
+			info: string;
+			list: string;
+			page: string;
+			add: string;
+		};
+
+		/**
+		 * 权限状态
+		 */
+		_permission: {
+			delete: boolean;
+			update: boolean;
+			info: boolean;
+			list: boolean;
+			page: boolean;
+			add: boolean;
+		};
 
 		request: Service["request"];
 	}
@@ -2179,12 +2511,14 @@ declare namespace Eps {
 		};
 		demo: { goods: DemoGoods; tenant: DemoTenant };
 		dict: { info: DictInfo; type: DictType };
+		picture: { date: PictureDate };
 		plugin: { info: PluginInfo };
 		recycle: { data: RecycleData };
+		shop: { category: ShopCategory; goods: ShopGoods };
 		space: { info: SpaceInfo; type: SpaceType };
 		task: { info: TaskInfo };
 		user: { address: UserAddress; info: UserInfo };
 	};
 
-	type DictKey = "brand" | "occupation";
+	type DictKey = "brand" | "occupation" | "PicType";
 }
