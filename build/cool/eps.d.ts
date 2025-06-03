@@ -1,4 +1,66 @@
 declare namespace Eps {
+	interface BannerInfoEntity {
+		/**
+		 * ID
+		 */
+		id?: number;
+
+		/**
+		 * 名称
+		 */
+		name?: string;
+
+		/**
+		 * 图片
+		 */
+		pic?: string;
+
+		/**
+		 * 链接
+		 */
+		link?: string;
+
+		/**
+		 * 排序
+		 */
+		sort?: number;
+
+		/**
+		 * 类型
+		 */
+		type?: number;
+
+		/**
+		 * 状态
+		 */
+		status?: number;
+
+		/**
+		 * 简介
+		 */
+		summary?: string;
+
+		/**
+		 * 备注
+		 */
+		remark?: string;
+
+		/**
+		 * 创建时间
+		 */
+		createTime?: string;
+
+		/**
+		 * 更新时间
+		 */
+		updateTime?: string;
+
+		/**
+		 * 任意键值
+		 */
+		[key: string]: any;
+	}
+
 	interface BaseSysDepartmentEntity {
 		/**
 		 * ID
@@ -1123,6 +1185,68 @@ declare namespace Eps {
 	}
 
 	type json = any;
+
+	interface BannerInfo {
+		/**
+		 * 删除
+		 */
+		delete(data?: any): Promise<any>;
+
+		/**
+		 * 修改
+		 */
+		update(data?: any): Promise<any>;
+
+		/**
+		 * 单个信息
+		 */
+		info(data?: any): Promise<BannerInfoEntity>;
+
+		/**
+		 * 列表查询
+		 */
+		list(data?: any): Promise<BannerInfoEntity[]>;
+
+		/**
+		 * 分页查询
+		 */
+		page(data?: any): Promise<{
+			pagination: { size: number; page: number; total: number; [key: string]: any };
+			list: BannerInfoEntity[];
+			[key: string]: any;
+		}>;
+
+		/**
+		 * 新增
+		 */
+		add(data?: any): Promise<any>;
+
+		/**
+		 * 权限标识
+		 */
+		permission: {
+			delete: string;
+			update: string;
+			info: string;
+			list: string;
+			page: string;
+			add: string;
+		};
+
+		/**
+		 * 权限状态
+		 */
+		_permission: {
+			delete: boolean;
+			update: boolean;
+			info: boolean;
+			list: boolean;
+			page: boolean;
+			add: boolean;
+		};
+
+		request: Service["request"];
+	}
 
 	interface BaseCoding {
 		/**
@@ -2496,6 +2620,7 @@ declare namespace Eps {
 			[key: string]: any;
 		}): Promise<any>;
 
+		banner: { info: BannerInfo };
 		base: {
 			coding: BaseCoding;
 			comm: BaseComm;
