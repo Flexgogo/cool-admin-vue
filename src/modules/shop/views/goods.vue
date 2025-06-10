@@ -408,6 +408,7 @@ const Upsert = useUpsert({
 const Table = useTable({
 	columns: [
 		{ type: "selection" },
+		{ label: t("分类ID"), prop: "categoryId", minWidth: 100 },
 		{ label: t("分类名称"), prop: "categoryName", minWidth: 140 },
 		{
 			label: t("图片"),
@@ -454,7 +455,29 @@ const Table = useTable({
 });
 
 // cl-search
-const Search = useSearch();
+const Search = useSearch({
+	items: [
+		{
+			label: t("图片名称"),
+			prop: "name",
+			component: { name: "el-input", props: { clearable: true, placeholder: t("请输入图片名称") } },
+		},
+		{
+			label: t("分类"),
+			prop: "categoryId",
+			component: { 
+				name: "shop-category-select",
+				vm: CategorySelect,
+				props: { clearable: true, placeholder: t("请选择分类") }
+			},
+		},
+		{
+			label: t("状态"),
+			prop: "status",
+			component: { name: "el-select", options: options.status, props: { clearable: true, placeholder: t("请选择状态") } },
+		},
+	],
+});
 
 // cl-crud
 const Crud = useCrud(
