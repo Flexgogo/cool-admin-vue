@@ -64,7 +64,9 @@ const Upsert = useUpsert({
 				props: {
 					accept: "image/*",
 					size: [150, 150],
-					limit: 1
+					limit: 1,
+					// 禁用缩略图生成
+					generateThumbnail: false
 				}
 			},
 			span: 12,

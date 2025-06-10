@@ -65,7 +65,15 @@ const Upsert = useUpsert({
 			span: 12,
 			required: true,
 		},
-		{ label: t("图片"), prop: "pic", component: { name: "cl-upload" } },
+		{ label: t("图片"), prop: "pic", component: { name: "cl-upload",
+		props: {
+					accept: "image/*",
+					size: [150, 150],
+					limit: 1,
+					// 禁用缩略图生成
+					generateThumbnail: false
+				}
+		} },
 		{
 			label: t("链接"),
 			prop: "link",
