@@ -1,7 +1,7 @@
 import { ElMessage } from 'element-plus';
 import { module, service } from '/@/cool';
 import { extname, filename, uuid } from '/@/cool/utils';
-import { pathJoin } from '../utils';
+import { pathJoin, generateThumbnail, isImageFile } from '../utils';
 import { useBase } from '/$/base';
 import { type AxiosProgressEvent } from 'axios';
 import { merge } from 'lodash-es';
@@ -17,7 +17,13 @@ export function useUpload() {
 		return new Promise((resolve, reject) => {
 			const executor = async () => {
 				// 合并配置
-				const { prefixPath, onProgress } = merge({}, options, opts);
+				const { 
+					prefixPath, 
+					onProgress, 
+					generateThumbnailOnSuccess = true,
+					thumbnailSize = 512,
+					thumbnailQuality = 0.8
+				} = merge({}, options, opts);
 
 				// 文件id
 				const fileId = uuid('');
@@ -84,7 +90,7 @@ export function useUpload() {
 						// 上传
 						await service
 							.request(reqData as any)
-							.then(res => {
+							.then(async res => {
 								if (progress != 100) {
 									onProgress?.(100);
 								}
@@ -99,11 +105,37 @@ export function useUpload() {
 									url = pathJoin(preview || host, key);
 								}
 
-								resolve({
+								const result: Upload.UploadResult = {
 									key,
 									url,
 									fileId
-								});
+								};
+
+								// 如果是图片文件且启用了缩略图生成，则生成并上传缩略图
+								if (generateThumbnailOnSuccess && isImageFile(file)) {
+									try {
+										console.log('开始生成缩略图...');
+										const thumbnailFile = await generateThumbnail(file, thumbnailSize, thumbnailQuality);
+										console.log('缩略图生成成功，开始上传缩略图...');
+										
+										// 上传缩略图
+										const thumbnailResult = await toUpload(thumbnailFile, {
+											...opts,
+											generateThumbnailOnSuccess: false, // 避免递归生成缩略图
+											onProgress: undefined // 缩略图上传不显示进度
+										});
+										
+										console.log('缩略图上传成功:', thumbnailResult);
+										
+										// 将缩略图信息添加到结果中
+										result.thumbnail = thumbnailResult;
+									} catch (thumbnailError) {
+										console.warn('缩略图生成或上传失败:', thumbnailError);
+										// 缩略图失败不影响原图上传成功
+									}
+								}
+
+								resolve(result);
 							})
 							.catch(err => {
 								ElMessage.error(err.message);

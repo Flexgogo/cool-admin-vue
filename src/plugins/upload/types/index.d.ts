@@ -13,20 +13,27 @@ declare namespace Upload {
 		preload?: string;
 		error?: string;
 		isPlay?: boolean;
+		thumbnail?: UploadResult;
 		[key: string]: any;
 	}
 
 	interface Options {
 		prefixPath?: string;
 		onProgress?(progress: number): void;
+		generateThumbnailOnSuccess?: boolean;
+		thumbnailSize?: number;
+		thumbnailQuality?: number;
 		[key: string]: any;
 	}
 
-	type Response = Promise<{
+	interface UploadResult {
 		key: string;
 		url: string;
 		fileId: string;
-	}>;
+		thumbnail?: UploadResult;
+	}
+
+	type Response = Promise<UploadResult>;
 
 	interface Request {
 		host: string;

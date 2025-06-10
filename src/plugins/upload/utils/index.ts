@@ -72,3 +72,6 @@ export function pathJoin(...parts: string[]): string {
 		return normalizedParts.join('/');
 	}
 }
+
+// 导出图片处理函数
+export * from './image';

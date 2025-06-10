@@ -1401,3 +1401,305 @@ npm run build
 - 修复了商店分类页面搜索功能无法正常工作的问题
 - 简化了搜索配置，使其与后端API能力匹配
 - 添加了详细的搜索功能使用指南
+
+## 图片上传缩略图功能
+
+### 功能概述
+
+为 cl-upload 组件新增了自动生成缩略图的功能，支持在图片上传成功后自动生成指定尺寸的缩略图，提升用户体验和系统性能。
+
+### 核心特性
+
+- **自动缩略图生成**：上传图片时自动生成缩略图，无需手动处理
+- **可配置尺寸**：支持自定义缩略图尺寸，默认512x512像素
+- **质量控制**：支持设置缩略图质量，默认0.8（80%质量）
+- **智能检测**：仅对图片文件生成缩略图，其他文件类型跳过
+- **无侵入性**：不影响原有上传流程，向下兼容
+- **类型安全**：完整的TypeScript类型定义
+
+### 技术实现
+
+#### 1. 缩略图生成工具
+
+**文件位置**：`src/plugins/upload/utils/thumbnail.ts`
+
+```typescript
+/**
+ * 生成图片缩略图
+ * @param file 原始文件
+ * @param maxSize 最大尺寸（宽高中的较大值）
+ * @param quality 图片质量 (0-1)
+ * @returns Promise<File> 缩略图文件
+ */
+export async function generateThumbnail(
+  file: File, 
+  maxSize: number = 512, 
+  quality: number = 0.8
+): Promise<File>
+
+/**
+ * 检查文件是否为图片
+ * @param file 文件对象
+ * @returns boolean 是否为图片
+ */
+export function isImageFile(file: File): boolean
+```
+
+**核心算法**：
+- 使用Canvas API进行图片缩放
+- 保持原图宽高比例
+- 支持JPEG、PNG、WebP等格式
+- 自动优化文件大小
+
+#### 2. 上传钩子增强
+
+**文件位置**：`src/plugins/upload/hooks/index.ts`
+
+```typescript
+interface UploadOptions {
+  // 原有选项...
+  generateThumbnailOnSuccess?: boolean;  // 是否生成缩略图
+  thumbnailSize?: number;                // 缩略图尺寸
+  thumbnailQuality?: number;             // 缩略图质量
+}
+
+// 上传成功后自动生成缩略图
+async function handleThumbnailGeneration(file: File, result: any, options: UploadOptions) {
+  if (options.generateThumbnailOnSuccess && isImageFile(file)) {
+    try {
+      // 生成缩略图
+      const thumbnailFile = await generateThumbnail(
+        file, 
+        options.thumbnailSize || 512, 
+        options.thumbnailQuality || 0.8
+      );
+      
+      // 上传缩略图
+      const thumbnailResult = await uploadFile(thumbnailFile);
+      
+      // 返回包含缩略图信息的结果
+      return {
+        ...result,
+        thumbnail: thumbnailResult
+      };
+    } catch (error) {
+      console.warn('缩略图生成失败:', error);
+      return result; // 不影响原始上传结果
+    }
+  }
+  return result;
+}
+```
+
+#### 3. 组件属性扩展
+
+**文件位置**：`src/plugins/upload/components/upload.vue`
+
+```typescript
+// 新增属性
+const props = defineProps({
+  // 原有属性...
+  generateThumbnail: {
+    type: Boolean,
+    default: true  // 默认开启缩略图生成
+  },
+  thumbnailSize: {
+    type: Number,
+    default: 512   // 默认512像素
+  },
+  thumbnailQuality: {
+    type: Number,
+    default: 0.8   // 默认80%质量
+  }
+});
+
+// 在httpRequest中传递缩略图配置
+function httpRequest(option: any) {
+  return toUpload(option.file, {
+    // 原有配置...
+    generateThumbnailOnSuccess: props.generateThumbnail,
+    thumbnailSize: props.thumbnailSize,
+    thumbnailQuality: props.thumbnailQuality
+  });
+}
+```
+
+### 使用方法
+
+#### 1. 基础用法
+
+```vue
+<template>
+  <!-- 自动生成512x512缩略图 -->
+  <cl-upload 
+    v-model="imageUrl" 
+    type="image"
+    :generate-thumbnail="true"
+    @success="onUploadSuccess"
+  />
+</template>
+
+<script setup>
+function onUploadSuccess(result) {
+  console.log('原图:', result.url);
+  console.log('缩略图:', result.thumbnail?.url);
+}
+</script>
+```
+
+#### 2. 自定义配置
+
+```vue
+<template>
+  <!-- 自定义缩略图尺寸和质量 -->
+  <cl-upload 
+    v-model="imageUrl" 
+    type="image"
+    :generate-thumbnail="true"
+    :thumbnail-size="256"
+    :thumbnail-quality="0.9"
+    @success="onUploadSuccess"
+  />
+</template>
+```
+
+#### 3. 禁用缩略图
+
+```vue
+<template>
+  <!-- 禁用缩略图生成 -->
+  <cl-upload 
+    v-model="imageUrl" 
+    type="image"
+    :generate-thumbnail="false"
+  />
+</template>
+```
+
+#### 4. 多图上传
+
+```vue
+<template>
+  <!-- 多图上传，每张图都生成缩略图 -->
+  <cl-upload 
+    v-model="imageUrls" 
+    type="image"
+    :multiple="true"
+    :generate-thumbnail="true"
+    @success="onMultipleUploadSuccess"
+  />
+</template>
+
+<script setup>
+const thumbnails = ref([]);
+
+function onMultipleUploadSuccess(result) {
+  if (result.thumbnail) {
+    thumbnails.value.push(result.thumbnail);
+  }
+}
+</script>
+```
+
+### 配置参数
+
+| 参数名 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `generateThumbnail` | Boolean | `true` | 是否自动生成缩略图 |
+| `thumbnailSize` | Number | `512` | 缩略图最大尺寸（像素） |
+| `thumbnailQuality` | Number | `0.8` | 缩略图质量（0-1） |
+
+### 事件回调
+
+#### success 事件
+
+上传成功时触发，返回的数据结构：
+
+```typescript
+interface UploadResult {
+  url: string;           // 原图URL
+  filename: string;      // 原图文件名
+  size: number;          // 原图文件大小
+  thumbnail?: {          // 缩略图信息（如果生成成功）
+    url: string;         // 缩略图URL
+    filename: string;    // 缩略图文件名
+    size: number;        // 缩略图文件大小
+  };
+}
+```
+
+### 演示页面
+
+**文件位置**：`src/plugins/upload/demo/thumbnail.vue`
+
+演示页面包含以下测试场景：
+- 基础用法（自动生成512x512缩略图）
+- 自定义缩略图尺寸（256x256）
+- 禁用缩略图生成
+- 多图上传（每张图都生成缩略图）
+- 图片预览对比（原图vs缩略图）
+
+### 性能优化
+
+1. **异步处理**：缩略图生成不阻塞原图上传流程
+2. **错误隔离**：缩略图生成失败不影响原图上传结果
+3. **内存管理**：及时释放Canvas和临时对象
+4. **格式优化**：自动选择最优的输出格式
+5. **尺寸控制**：智能计算缩略图尺寸，避免过度压缩
+
+### 兼容性说明
+
+- **向下兼容**：不影响现有上传功能
+- **浏览器支持**：支持所有现代浏览器（需要Canvas API支持）
+- **文件格式**：支持JPEG、PNG、WebP、GIF等常见图片格式
+- **框架版本**：适用于cool-admin-vue 8.x版本
+
+### 注意事项
+
+1. **文件大小**：建议原图不超过10MB，避免浏览器内存溢出
+2. **网络环境**：缩略图会额外产生一次上传请求
+3. **存储空间**：缩略图会占用额外的存储空间
+4. **处理时间**：大图片生成缩略图可能需要几秒钟时间
+
+### 故障排除
+
+#### 常见问题
+
+1. **缩略图生成失败**
+   - 检查文件是否为有效的图片格式
+   - 确认浏览器支持Canvas API
+   - 查看控制台错误信息
+
+2. **缩略图质量不佳**
+   - 调整`thumbnailQuality`参数（0.1-1.0）
+   - 增加`thumbnailSize`参数值
+   - 检查原图质量
+
+3. **上传速度慢**
+   - 减小`thumbnailSize`参数
+   - 降低`thumbnailQuality`参数
+   - 考虑禁用缩略图功能
+
+#### 调试方法
+
+```javascript
+// 开启详细日志
+console.log('上传结果:', result);
+console.log('缩略图信息:', result.thumbnail);
+
+// 检查文件类型
+console.log('是否为图片:', isImageFile(file));
+
+// 监控生成过程
+generateThumbnail(file, 512, 0.8)
+  .then(thumbnail => console.log('缩略图生成成功:', thumbnail))
+  .catch(error => console.error('缩略图生成失败:', error));
+```
+
+### 未来规划
+
+1. **批量处理**：支持批量生成多种尺寸的缩略图
+2. **格式转换**：支持自动转换图片格式（如WebP）
+3. **水印功能**：支持为缩略图添加水印
+4. **智能裁剪**：支持智能识别主体进行裁剪
+5. **服务端生成**：支持服务端生成缩略图的选项

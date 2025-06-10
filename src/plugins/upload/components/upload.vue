@@ -210,7 +210,22 @@ const props = defineProps({
 	// 上传前钩子
 	beforeUpload: Function,
 	// 云端上传路径前缀
-	prefixPath: String
+	prefixPath: String,
+	// 是否生成缩略图
+	generateThumbnail: {
+		type: Boolean,
+		default: true
+	},
+	// 缩略图尺寸
+	thumbnailSize: {
+		type: Number,
+		default: 512
+	},
+	// 缩略图质量
+	thumbnailQuality: {
+		type: Number,
+		default: 0.8
+	}
 });
 
 const emit = defineEmits(['update:modelValue', 'change', 'upload', 'success', 'error', 'progress']);
@@ -382,6 +397,9 @@ async function httpRequest(req: any, item?: Upload.Item) {
 	// 上传请求
 	toUpload(req.file, {
 		prefixPath: props.prefixPath,
+		generateThumbnailOnSuccess: props.generateThumbnail,
+		thumbnailSize: props.thumbnailSize,
+		thumbnailQuality: props.thumbnailQuality,
 		onProgress(progress) {
 			item!.progress = progress;
 			emit('progress', item);
@@ -389,6 +407,13 @@ async function httpRequest(req: any, item?: Upload.Item) {
 	})
 		.then(res => {
 			assign(item!, res);
+			
+			// 如果有缩略图信息，也添加到item中
+			if (res.thumbnail) {
+				item!.thumbnail = res.thumbnail;
+				console.log('图片上传成功，缩略图信息:', res.thumbnail);
+			}
+			
 			emit('success', item);
 			update();
 		})
