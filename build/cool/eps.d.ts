@@ -849,11 +849,6 @@ declare namespace Eps {
 		updateTime?: string;
 
 		/**
-		 * 分类名称
-		 */
-		categoryName?: string;
-
-		/**
 		 * 任意键值
 		 */
 		[key: string]: any;

@@ -37,6 +37,12 @@ const value = computed({
 
 const columns = ref([
 	{
+		label: t("分类ID"),
+		prop: "id",
+		minWidth: 100,
+		sortable: "custom"
+	},
+	{
 		label: t("图片"),
 		prop: "pic",
 		minWidth: 100,
