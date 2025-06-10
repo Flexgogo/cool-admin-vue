@@ -44,8 +44,8 @@
 						ref="batchUploadRef"
 						v-model="batchUpload.imageUrls"
 						:multiple="true"
-						:limit="20"
-						:auto-upload="true"
+						:limit="200"
+						:auto-upload="false"
 						type="image"
 						:size="[120, 120]"
 						@change="handleUploadChange"
@@ -54,7 +54,7 @@
 						@remove="handleUploadRemove"
 					/>
 					<div class="upload-tip">
-						{{ t("支持jpg/png格式，最多选择20张图片") }}
+						{{ t("支持jpg/png格式，最多选择200张图片") }}
 					</div>
 				</div>
 
