@@ -782,6 +782,11 @@ declare namespace Eps {
 		orderNum?: number;
 
 		/**
+		 * 类型
+		 */
+		type?: number;
+
+		/**
 		 * 创建时间
 		 */
 		createTime?: string;

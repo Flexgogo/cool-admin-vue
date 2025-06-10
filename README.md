@@ -1213,3 +1213,191 @@ function getFileNameFromUrl(url: string) {
 上传图片：laptop_macbook_pro.jpeg
 自动设置商品名称：laptop_macbook_pro
 ```
+
+## 搜索功能问题分析与解决方案
+
+### 问题描述
+用户反馈应用中的搜索功能无法正常工作。
+
+### 问题分析
+
+经过详细分析，发现问题的根本原因是**前端搜索配置与后端API搜索能力不匹配**。
+
+#### 具体问题：
+
+1. **API搜索能力限制**：
+   - 根据 `build/cool/eps.json` 配置文件，`shop/category` 接口的搜索配置为：
+   ```json
+   "search": {
+     "fieldEq": [],
+     "fieldLike": [],
+     "keyWordLikeFields": [
+       {
+         "propertyName": "name",
+         "type": "string",
+         "comment": "分类名称",
+         "source": "a.name"
+       }
+     ]
+   }
+   ```
+   - 这意味着后端只支持按 `name` 字段进行模糊搜索
+
+2. **前端配置过度**：
+   - 原始的前端搜索配置包含了多个字段：`id`、`name`、`status`、`type`
+   - 但后端API只支持 `name` 字段的搜索
+   - 当用户使用其他字段搜索时，后端无法处理这些参数
+
+### 解决方案
+
+#### 已实施的修复：
+
+1. **简化搜索配置**：
+   ```typescript
+   // 修改前：包含多个不支持的搜索字段
+   const Search = useSearch({
+     items: [
+       { label: t("分类ID"), prop: "id", ... },
+       { label: t("分类名称"), prop: "name", ... },
+       { label: t("状态"), prop: "status", ... },
+       { label: t("类型"), prop: "type", ... }
+     ]
+   });
+
+   // 修改后：只保留后端支持的搜索字段
+   const Search = useSearch({
+     items: [
+       {
+         label: t("分类名称"),
+         prop: "name",
+         component: { 
+           name: "el-input", 
+           props: { 
+             clearable: true, 
+             placeholder: t("请输入分类名称") 
+           } 
+         }
+       }
+     ]
+   });
+   ```
+
+#### 推荐的完整解决方案：
+
+如果需要支持更多字段的搜索，建议：
+
+1. **后端扩展**：修改后端API，在 `eps.json` 中添加更多搜索字段支持
+2. **前端适配**：根据后端实际支持的搜索字段来配置前端搜索组件
+
+### Cool Admin 搜索组件使用指南
+
+#### 基本用法：
+```vue
+<template>
+  <cl-crud ref="Crud">
+    <cl-row>
+      <cl-search ref="Search" />
+    </cl-row>
+    <cl-row>
+      <cl-table ref="Table" />
+    </cl-row>
+  </cl-crud>
+</template>
+
+<script setup>
+import { useCrud, useSearch, useTable } from '@cool-vue/crud';
+
+const Search = useSearch({
+  items: [
+    {
+      label: '搜索字段',
+      prop: 'fieldName',
+      component: {
+        name: 'el-input',
+        props: {
+          clearable: true,
+          placeholder: '请输入搜索内容'
+        }
+      }
+    }
+  ]
+});
+</script>
+```
+
+#### 重要注意事项：
+
+1. **字段匹配**：搜索字段必须与后端API支持的字段匹配
+2. **类型对应**：
+   - `keyWordLikeFields`：支持模糊搜索的字段
+   - `fieldEq`：支持精确匹配的字段
+   - `fieldLike`：支持LIKE查询的字段
+
+3. **组件选择**：
+   - 文本搜索：使用 `el-input`
+   - 选项搜索：使用 `el-select`
+   - 日期搜索：使用 `el-date-picker`
+
+### 项目结构说明
+
+```
+├── src/
+│   ├── modules/           # 业务模块
+│   │   ├── shop/         # 商店模块
+│   │   │   └── views/    # 视图文件
+│   │   │       └── category.vue  # 分类管理页面
+│   │   ├── cool/             # 核心框架文件
+│   │   └── plugins/          # 插件文件
+│   ├── build/
+│   │   └── cool/
+│   │       ├── eps.json      # API端点配置
+│   │       └── eps.d.ts      # API类型定义
+│   └── packages/             # 源码包
+```
+
+### 开发建议
+
+1. **开发前检查**：在开发搜索功能前，先查看 `build/cool/eps.json` 了解API支持的搜索字段
+2. **类型安全**：利用 `build/cool/eps.d.ts` 中的类型定义确保类型安全
+3. **测试验证**：修改搜索配置后及时测试验证功能是否正常
+
+### 常见问题
+
+1. **搜索无效果**：检查搜索字段是否在后端API的搜索配置中
+2. **类型错误**：确保前端字段类型与后端定义一致
+3. **权限问题**：确保当前用户有相应的API访问权限
+
+## 技术栈
+
+- **前端框架**：Vue 3 + TypeScript
+- **UI组件库**：Element Plus
+- **构建工具**：Vite
+- **状态管理**：Pinia
+- **路由管理**：Vue Router
+- **HTTP客户端**：Axios
+- **样式预处理**：SCSS
+
+## 开发环境
+
+- Node.js >= 16
+- npm >= 8
+
+## 启动项目
+
+```bash
+# 安装依赖
+npm install
+
+# 启动开发服务器
+npm run dev
+
+# 构建生产版本
+npm run build
+```
+
+## 更新日志
+
+### 2024-12-26
+- 修复了商店分类页面搜索功能无法正常工作的问题
+- 简化了搜索配置，使其与后端API能力匹配
+- 添加了详细的搜索功能使用指南

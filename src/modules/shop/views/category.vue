@@ -47,6 +47,10 @@ const options = reactive({
 		{ label: t("下架"), value: 0, type: "danger" },
 		{ label: t("上架"), value: 1, type: "success" },
 	],
+	type: [
+		{ label: t("category"), value: 0, type: "danger" },
+		{ label: t("collection"), value: 1, type: "success" },
+	],
 });
 
 // cl-upsert
@@ -83,6 +87,13 @@ const Upsert = useUpsert({
 			label: t("状态"),
 			prop: "status",
 			component: { name: "el-radio-group", options: options.status },
+			value: 0,
+			required: true,
+		},
+		{
+			label: t("类型"),
+			prop: "type",
+			component: { name: "el-radio-group", options: options.type },
 			value: 0,
 			required: true,
 		},
@@ -126,6 +137,12 @@ const Table = useTable({
 			minWidth: 120,
 			dict: options.status,
 		},
+		{
+			label: t("类型"),
+			prop: "type",
+			minWidth: 120,
+			dict: options.type,
+		},
 		{ label: t("排序"), prop: "orderNum", minWidth: 120 },
 		{
 			label: t("创建时间"),
@@ -163,6 +180,11 @@ const Search = useSearch({
 			prop: "status",
 			component: { name: "el-select", options: options.status, props: { clearable: true, placeholder: t("请选择状态") } },
 		},
+		{
+			label: t("类型"),
+			prop: "type",
+			component: { name: "el-select", options: options.type, props: { clearable: true, placeholder: t("请选择类型") } },
+		}
 	],
 });
 
