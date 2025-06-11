@@ -787,6 +787,11 @@ declare namespace Eps {
 		type?: number;
 
 		/**
+		 * 数量
+		 */
+		count?: number;
+
+		/**
 		 * 创建时间
 		 */
 		createTime?: string;

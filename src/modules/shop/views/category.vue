@@ -132,6 +132,7 @@ const Table = useTable({
 			}
 		},
 		{ label: t("分类名称"), prop: "name", minWidth: 120 },
+		{ label: t("图片数量"), prop: "count", minWidth: 120 },
 		{ label: t("描述"), prop: "description", minWidth: 120 },
 		{
 			label: t("状态"),
