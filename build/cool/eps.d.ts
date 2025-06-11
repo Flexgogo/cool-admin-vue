@@ -591,6 +591,11 @@ declare namespace Eps {
 		remark?: string;
 
 		/**
+		 * 名称
+		 */
+		name?: string;
+
+		/**
 		 * 创建时间
 		 */
 		createTime?: string;
