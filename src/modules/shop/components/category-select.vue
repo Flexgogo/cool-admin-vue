@@ -6,6 +6,7 @@
 		:columns="columns"
 		:multiple="multiple"
 		:dict="{ img: 'pic', text: 'name' }"
+		@change="handleChange"
 	/>
 </template>
 
@@ -25,15 +26,23 @@ const props = defineProps({
 	multiple: Boolean,
 });
 
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits(['update:modelValue', 'change']);
 
 const { service } = useCool();
 const { t } = useI18n();
 
 const value = computed({
 	get: () => props.modelValue,
-	set: (val) => emit('update:modelValue', val)
+	set: (val) => {
+		emit('update:modelValue', val);
+		emit('change', val);
+	}
 });
+
+// 处理change事件
+function handleChange(val: any) {
+	emit('change', val);
+}
 
 const columns = ref([
 	{

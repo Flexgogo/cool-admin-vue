@@ -66,7 +66,10 @@
 							<el-row :gutter="20">
 								<el-col :span="12">
 									<el-form-item :label="t('选择分类')">
-										<CategorySelect v-model="batchUpload.batchSettings.categoryId" />
+										<CategorySelect 
+											v-model="batchUpload.batchSettings.categoryId" 
+											@change="handleBatchCategoryChange"
+										/>
 									</el-form-item>
 								</el-col>
 								<el-col :span="12">
@@ -231,7 +234,7 @@ const batchUpload = reactive({
 	batchSettings: {
 		categoryId: null,
 		status: 1,
-		startOrderNum: 10,
+		startOrderNum: 0,
 		orderStep: 1,
 		description: "",
 	},
@@ -309,7 +312,10 @@ const Upsert = useUpsert({
 			prop: "categoryId",
 			component: { 
 				name: "shop-category-select",
-				vm: CategorySelect
+				vm: CategorySelect,
+				props: {
+					onChange: handleCategoryChange
+				}
 			},
 			span: 12,
 			required: true,
@@ -351,6 +357,17 @@ const Upsert = useUpsert({
 	onOpened(data) {
 		try {
 			console.log('商品表单已打开，数据：', data);
+			
+			// 如果是新增模式且没有设置排序值，设置默认排序值
+			if (Upsert.value?.mode === 'add' && !data.orderNum) {
+				// 如果已经选择了分类，获取该分类的最大排序值
+				if (data.categoryId) {
+					handleCategoryChange(data.categoryId);
+				} else {
+					// 如果没有选择分类，设置默认排序值
+					Upsert.value.form.orderNum = 0;
+				}
+			}
 		} catch (error) {
 			console.error('表单已打开事件处理失败:', error);
 		}
@@ -505,6 +522,109 @@ function refresh(params?: any) {
 	}
 }
 
+// 获取指定分类的最大排序值
+async function getMaxOrderNumByCategory(categoryId: any): Promise<number> {
+	try {
+		if (!categoryId) {
+			console.warn('分类ID为空，返回默认排序值');
+			return 0;
+		}
+		
+		console.log('获取分类最大排序值，分类ID:', categoryId);
+		
+		// 调用商品列表接口，获取该分类下的所有商品，按排序值降序排列
+		const res = await service.shop.goods.page({
+			page: 1,
+			size: 1, // 只需要获取一条记录来确认是否有数据
+			categoryId: categoryId,
+			// 使用正确的排序参数格式
+			orderBy: 'orderNum',
+			orderType: 'desc' // 按排序值降序排列
+		});
+		
+		if (res && res.list && res.list.length > 0) {
+			const maxOrderNum = res.list[0].orderNum || 0;
+			console.log('获取到的最大排序值:', maxOrderNum);
+			return maxOrderNum + 1;
+		} else {
+			console.log('该分类下暂无商品，返回默认排序值');
+			return 0;
+		}
+	} catch (error) {
+		console.error('获取分类最大排序值失败:', error);
+		// 发生错误时返回默认值，可以尝试获取全局最大值
+		try {
+			console.log('尝试获取全局最大排序值作为备选方案');
+			const globalRes = await service.shop.goods.page({
+				page: 1,
+				size: 1,
+				orderBy: 'orderNum',
+				orderType: 'desc'
+			});
+			
+			if (globalRes && globalRes.list && globalRes.list.length > 0) {
+				const globalMaxOrderNum = globalRes.list[0].orderNum || 0;
+				console.log('获取到的全局最大排序值:', globalMaxOrderNum);
+				return globalMaxOrderNum + 1;
+			}
+		} catch (globalError) {
+			console.error('获取全局最大排序值也失败:', globalError);
+		}
+		
+		return 0;
+	}
+}
+
+// 当分类改变时自动设置排序值
+async function handleCategoryChange(categoryId: any) {
+	try {
+		if (!categoryId || !Upsert.value?.form) {
+			return;
+		}
+		
+		console.log('分类已改变，开始获取最大排序值，分类ID:', categoryId);
+		
+		// 只有在新增模式下才自动设置排序值，编辑模式保持原有排序值
+		if (Upsert.value.mode === 'add') {
+			const maxOrderNum = await getMaxOrderNumByCategory(categoryId);
+			
+			// 设置排序值
+			Upsert.value.form.orderNum = maxOrderNum;
+			
+			console.log('已自动设置排序值:', maxOrderNum);
+			ElMessage.success(t(`已自动设置排序值为 ${maxOrderNum}`));
+		}
+	} catch (error) {
+		console.error('处理分类改变事件失败:', error);
+		ElMessage.warning(t('自动设置排序值失败，请手动设置'));
+	}
+}
+
+// 批量上传中处理分类改变
+async function handleBatchCategoryChange(categoryId: any) {
+	try {
+		if (!categoryId) {
+			return;
+		}
+		
+		console.log('批量上传分类已改变，开始获取最大排序值，分类ID:', categoryId);
+		
+		// 获取该分类的最大排序值
+		const maxOrderNum = await getMaxOrderNumByCategory(categoryId);
+		
+		// 更新批量设置中的起始排序值
+		batchUpload.batchSettings.startOrderNum = maxOrderNum;
+		
+		console.log('已自动设置批量上传起始排序值:', maxOrderNum);
+		ElMessage.success(t(`已自动设置起始排序值为 ${maxOrderNum}`));
+	} catch (error) {
+		console.error('处理批量上传分类改变事件失败:', error);
+		ElMessage.warning(t('自动设置起始排序值失败，请手动设置'));
+	}
+}
+
+
+
 // 加载分类列表
 async function loadCategoryList() {
 	try {
@@ -549,7 +669,7 @@ async function openBatchUpload() {
 		batchUpload.batchSettings = {
 			categoryId: null,
 			status: 1,
-			startOrderNum: 10,
+			startOrderNum: 0,
 			orderStep: 1,
 			description: "",
 		};
@@ -577,7 +697,7 @@ async function openBatchUpload() {
 }
 
 // 处理上传变化
-function handleUploadChange(urls: string[]) {
+async function handleUploadChange(urls: string[]) {
 	try {
 		console.log('上传变化事件:', urls);
 		
@@ -596,7 +716,7 @@ function handleUploadChange(urls: string[]) {
 		batchUpload.imageUrls = [...urls];
 		
 		// 当图片URL数组发生变化时，更新预览列表
-		updatePreviewList(urls);
+		await updatePreviewList(urls);
 		
 		console.log('上传变化处理完成，当前图片数量:', urls.length);
 	} catch (error) {
@@ -675,7 +795,7 @@ function handleUploadRemove(index: number) {
 }
 
 // 更新预览列表
-function updatePreviewList(urls: string[]) {
+async function updatePreviewList(urls: string[]) {
 	try {
 		// 参数验证
 		if (!Array.isArray(urls)) {
@@ -700,30 +820,49 @@ function updatePreviewList(urls: string[]) {
 		}
 
 		// 根据新的URL列表重新生成预览列表
-		batchUpload.previewList = urls.map((url, index) => {
+		const newPreviewList = [];
+		
+		for (let index = 0; index < urls.length; index++) {
+			const url = urls[index];
+			
 			try {
 				// 验证URL
 				if (!url || typeof url !== 'string') {
 					console.warn('无效的图片URL:', url);
-					return null;
+					continue;
 				}
 				
 				const existing = existingData.get(url);
 				const fileName = getFileNameFromUrl(url);
 				
-				return {
+				// 创建预览项
+				const previewItem = {
 					pic: url,
 					name: existing?.name || fileName || `商品${index + 1}`,
-					categoryId: existing?.categoryId || null,
+					categoryId: existing?.categoryId || batchUpload.batchSettings.categoryId || null,
 					status: existing?.status !== undefined ? existing.status : 1,
-					orderNum: existing?.orderNum || ((index + 1) * 10),
+					orderNum: existing?.orderNum || index,
 					description: existing?.description || "",
 				};
+				
+				// 如果有分类ID且没有现有的排序值，获取该分类的最大排序值
+				if (previewItem.categoryId && !existing?.orderNum) {
+					try {
+						const maxOrderNum = await getMaxOrderNumByCategory(previewItem.categoryId);
+						previewItem.orderNum = maxOrderNum + index; // 为每个商品递增排序值
+					} catch (error) {
+						console.warn('获取分类最大排序值失败，使用默认值:', error);
+						previewItem.orderNum = index;
+					}
+				}
+				
+				newPreviewList.push(previewItem);
 			} catch (error) {
 				console.error('处理预览项失败:', error, url);
-				return null;
 			}
-		}).filter(item => item !== null); // 过滤掉无效项
+		}
+		
+		batchUpload.previewList = newPreviewList;
 		
 		console.log('预览列表已更新，项目数量:', batchUpload.previewList.length);
 	} catch (error) {
@@ -869,7 +1008,7 @@ function resetBatchSettings() {
 	batchUpload.batchSettings = {
 		categoryId: null,
 		status: 1,
-		startOrderNum: 10,
+		startOrderNum: 0,
 		orderStep: 1,
 		description: "",
 	};
@@ -942,7 +1081,7 @@ async function submitBatchUpload() {
 		batchUpload.batchSettings = {
 			categoryId: null,
 			status: 1,
-			startOrderNum: 10,
+			startOrderNum: 0,
 			orderStep: 1,
 			description: "",
 		};
@@ -963,8 +1102,8 @@ async function submitBatchUpload() {
 // 监听图片URL变化
 watch(
 	() => batchUpload.imageUrls,
-	(newUrls) => {
-		updatePreviewList(newUrls);
+	async (newUrls) => {
+		await updatePreviewList(newUrls);
 	},
 	{ deep: true }
 );
@@ -1009,7 +1148,7 @@ onBeforeUnmount(() => {
 		batchUpload.batchSettings = {
 			categoryId: null,
 			status: 1,
-			startOrderNum: 10,
+			startOrderNum: 0,
 			orderStep: 1,
 			description: "",
 		};
