@@ -529,7 +529,80 @@ const Table = useTable({
 });
 
 // cl-search
-const Search = useSearch();
+const Search = useSearch({
+	items: [
+		{
+			label: t("图片名称"),
+			prop: "name",
+			component: {
+				name: "el-input",
+				props: {
+					clearable: true,
+					placeholder: t("请输入图片名称关键词")
+				}
+			}
+		},
+		{
+			label: t("精确日期"),
+			prop: "date",
+			component: {
+				name: "el-date-picker",
+				props: {
+					type: "date",
+					format: "YYYY-MM-DD",
+					valueFormat: "YYYY-MM-DD",
+					placeholder: t("请选择具体日期"),
+					clearable: true
+				}
+			}
+		},
+		{
+			label: t("日期范围"),
+			prop: "dateTimeRange",
+			component: {
+				name: "el-date-picker",
+				props: {
+					type: "daterange",
+					format: "YYYY-MM-DD",
+					valueFormat: "YYYY-MM-DD",
+					startPlaceholder: t("开始日期"),
+					endPlaceholder: t("结束日期"),
+					clearable: true,
+					rangeSeparator: "至"
+				}
+			}
+		},
+		{
+			label: t("状态"),
+			prop: "status",
+			component: {
+				name: "el-select",
+				options: options.status,
+				props: {
+					clearable: true,
+					placeholder: t("请选择状态")
+				}
+			}
+		}
+	],
+	// 启用重置按钮
+	resetBtn: true,
+	// 搜索时的钩子函数
+	onSearch: (data: any, { next }: { next: (data: any) => void }) => {
+		console.log('🔍 执行搜索，搜索条件:', data);
+		
+		// 清理空值参数
+		const searchParams = { ...data };
+		Object.keys(searchParams).forEach(key => {
+			if (searchParams[key] === '' || searchParams[key] === null || searchParams[key] === undefined) {
+				delete searchParams[key];
+			}
+		});
+		
+		console.log('🔍 最终搜索参数:', searchParams);
+		next(searchParams);
+	}
+});
 
 // cl-crud
 const Crud = useCrud(
@@ -1262,5 +1335,83 @@ onBeforeUnmount(() => {
 	font-size: 12px;
 	margin-top: 4px;
 	line-height: 1.2;
+}
+
+/* 搜索组件样式优化 */
+:deep(.cl-search) {
+	.el-form-item {
+		margin-bottom: 12px;
+	}
+	
+	.el-form-item__label {
+		font-weight: 500;
+		color: var(--el-text-color-primary);
+		font-size: 14px;
+	}
+	
+	.el-date-editor {
+		width: 200px;
+		min-width: 180px;
+	}
+	
+	.el-select {
+		width: 150px;
+		min-width: 120px;
+	}
+	
+	.el-input {
+		width: 180px;
+		min-width: 150px;
+	}
+	
+	/* 日期范围选择器特殊样式 */
+	.el-date-editor.el-range-editor {
+		width: 280px;
+		min-width: 250px;
+	}
+	
+	/* 搜索按钮样式 */
+	.cl-search__btns {
+		margin-left: 16px;
+		
+		.el-button {
+			margin-left: 8px;
+			padding: 8px 16px;
+		}
+		
+		.el-button--primary {
+			background-color: var(--el-color-primary);
+			border-color: var(--el-color-primary);
+			box-shadow: 0 2px 4px rgba(64, 158, 255, 0.3);
+		}
+		
+		.el-button--primary:hover {
+			background-color: var(--el-color-primary-light-3);
+			border-color: var(--el-color-primary-light-3);
+		}
+		
+		.el-button--default {
+			color: var(--el-text-color-regular);
+			border-color: var(--el-border-color);
+		}
+		
+		.el-button--default:hover {
+			color: var(--el-color-primary);
+			border-color: var(--el-color-primary);
+		}
+	}
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+	:deep(.cl-search) {
+		.el-form-item {
+			margin-bottom: 15px;
+		}
+		
+		.el-date-editor {
+			width: 100%;
+		}
+	}
 }
 </style>
