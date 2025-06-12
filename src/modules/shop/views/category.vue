@@ -37,6 +37,8 @@ import { useCrud, useTable, useUpsert, useSearch } from "@cool-vue/crud";
 import { useCool } from "/@/cool";
 import { useI18n } from "vue-i18n";
 import { reactive } from "vue";
+import { Top } from "@element-plus/icons-vue";
+import { ElMessage, ElMessageBox } from "element-plus";
 
 const { service } = useCool();
 const { t } = useI18n();
@@ -185,20 +187,40 @@ const Table = useTable({
 		{ 
 			label: t("排序"), 
 			prop: "orderNum",
-			sortable: "desc", 
-			minWidth: 180,
+			sortable: "asc", 
+			minWidth: 200,
 			formatter(row) {
+				const isTop = row.orderNum === 0;
 				return (
-					<div style="display: flex; align-items: center; gap: 8px;">
-						<span>{row.orderNum}</span>
-						<el-button 
-							type="primary" 
-							size="small" 
-							onClick={() => setTop(row)}
-							style="padding: 2px 6px; font-size: 12px;"
-						>
-							置顶
-						</el-button>
+					<div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+						<div style="display: flex; align-items: center; gap: 6px;">
+							{isTop && (
+								<el-tag type="danger" size="small" effect="dark">
+									<el-icon style="margin-right: 2px;"><Top /></el-icon>
+									置顶
+								</el-tag>
+							)}
+							<el-tag 
+								type={isTop ? "danger" : "info"} 
+								size="small"
+								effect={isTop ? "light" : "plain"}
+							>
+								{row.orderNum}
+							</el-tag>
+						</div>
+						{!isTop && (
+							<el-button 
+								type="primary" 
+								size="small" 
+								plain
+								onClick={() => setTop(row)}
+								style="padding: 4px 8px; font-size: 12px; margin-left: 8px;"
+								title="点击置顶"
+							>
+								<el-icon style="margin-right: 2px;"><Top /></el-icon>
+								置顶
+							</el-button>
+						)}
 					</div>
 				);
 			}
@@ -265,6 +287,26 @@ function refresh(params?: any) {
 // 置顶功能
 async function setTop(row: any) {
 	try {
+		// 确认对话框
+		await ElMessageBox.confirm(
+			`确定要将分类"${row.name}"置顶吗？置顶后该分类将显示在列表最前面。`,
+			t("确认置顶"),
+			{
+				confirmButtonText: t("确定"),
+				cancelButtonText: t("取消"),
+				type: "warning",
+				confirmButtonClass: "el-button--primary",
+			}
+		);
+
+		// 显示加载提示
+		const loading = ElMessage({
+			message: t("正在置顶中..."),
+			type: "info",
+			duration: 0,
+			showClose: false
+		});
+
 		// 获取所有分类数据
 		const res = await service.shop.category.list();
 		
@@ -294,19 +336,26 @@ async function setTop(row: any) {
 				orderNum: 0
 			});
 		}
+
+		// 关闭加载提示
+		loading.close();
 		
 		// 刷新表格数据
 		refresh();
 		
+		// 显示成功提示
+		ElMessage.success(`分类"${row.name}"已成功置顶！`);
+		
 		console.log(`置顶成功: ID ${row.id} 的排序号已设置为 0，其他数据排序号已加1`);
 		
-		// 可选：显示成功提示
-		// ElMessage.success(t("置顶成功"));
-		
 	} catch (error) {
+		if (error === 'cancel') {
+			// 用户取消操作
+			return;
+		}
+		
 		console.error('置顶失败:', error);
-		// 可选：显示错误提示
-		// ElMessage.error(t("置顶失败"));
+		ElMessage.error(t("置顶失败，请重试"));
 	}
 }
 </script>
