@@ -28,7 +28,7 @@
 	</cl-crud>
 </template>
 
-<script lang="ts" setup>
+<script lang="tsx" setup>
 defineOptions({
 	name: "shop-category",
 });
@@ -125,7 +125,7 @@ const Upsert = useUpsert({
 					}, 0);
 				}
 				
-				// 设置新的排序号为最大值加1
+				// 设置新的排序号为最大值加1（新增的数据排在最后）
 				const newOrderNum = maxOrderNum + 1;
 				
 				// 设置表单的排序字段值
@@ -182,7 +182,27 @@ const Table = useTable({
 			minWidth: 120,
 			dict: options.type,
 		},
-		{ label: t("排序"), prop: "orderNum",sortable: "desc", minWidth: 120 },
+		{ 
+			label: t("排序"), 
+			prop: "orderNum",
+			sortable: "desc", 
+			minWidth: 180,
+			formatter(row) {
+				return (
+					<div style="display: flex; align-items: center; gap: 8px;">
+						<span>{row.orderNum}</span>
+						<el-button 
+							type="primary" 
+							size="small" 
+							onClick={() => setTop(row)}
+							style="padding: 2px 6px; font-size: 12px;"
+						>
+							置顶
+						</el-button>
+					</div>
+				);
+			}
+		},
 		{
 			label: t("创建时间"),
 			prop: "createTime",
@@ -240,5 +260,53 @@ const Crud = useCrud(
 // 刷新
 function refresh(params?: any) {
 	Crud.value?.refresh(params);
+}
+
+// 置顶功能
+async function setTop(row: any) {
+	try {
+		// 获取所有分类数据
+		const res = await service.shop.category.list();
+		
+		if (res && Array.isArray(res)) {
+			// 批量更新操作数组
+			const updatePromises = [];
+			
+			// 遍历所有数据，除了当前要置顶的数据外，其他数据排序号都加1
+			for (const item of res) {
+				if (item.id !== row.id) {
+					// 其他数据排序号加1
+					updatePromises.push(
+						service.shop.category.update({
+							id: item.id,
+							orderNum: (item.orderNum || 0) + 1
+						})
+					);
+				}
+			}
+			
+			// 先更新其他数据的排序号
+			await Promise.all(updatePromises);
+			
+			// 最后将当前数据的排序号设置为0（置顶）
+			await service.shop.category.update({
+				id: row.id,
+				orderNum: 0
+			});
+		}
+		
+		// 刷新表格数据
+		refresh();
+		
+		console.log(`置顶成功: ID ${row.id} 的排序号已设置为 0，其他数据排序号已加1`);
+		
+		// 可选：显示成功提示
+		// ElMessage.success(t("置顶成功"));
+		
+	} catch (error) {
+		console.error('置顶失败:', error);
+		// 可选：显示错误提示
+		// ElMessage.error(t("置顶失败"));
+	}
 }
 </script>
