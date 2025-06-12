@@ -150,8 +150,13 @@
 											clearable
 										/>
 									</el-form-item>
-									<el-form-item :label="t('选择分类')" required>
-										<CategorySelect v-model="item.categoryId" />
+									<el-form-item :label="t('分类')" required>
+										<el-text v-if="item.categoryId" class="category-display">
+											{{ getCategoryName(item.categoryId) }}
+										</el-text>
+										<el-text v-else class="category-display no-category">
+											{{ t("未设置分类") }}
+										</el-text>
 									</el-form-item>
 									<el-form-item :label="t('状态')">
 										<el-radio-group v-model="item.status">
@@ -227,9 +232,10 @@ const batchUpload = reactive({
 		categoryId: null,
 		status: 1,
 		startOrderNum: 10,
-		orderStep: 10,
+		orderStep: 1,
 		description: "",
 	},
+	categoryList: [] as any[], // 分类列表，用于显示分类名称
 });
 
 // 选项
@@ -499,8 +505,40 @@ function refresh(params?: any) {
 	}
 }
 
+// 加载分类列表
+async function loadCategoryList() {
+	try {
+		const res = await service.shop.category.list();
+		if (res && Array.isArray(res)) {
+			batchUpload.categoryList = res;
+		} else {
+			console.warn('分类列表数据格式异常:', res);
+			batchUpload.categoryList = [];
+		}
+	} catch (error) {
+		console.error('加载分类列表失败:', error);
+		batchUpload.categoryList = [];
+		ElMessage.warning(t('加载分类列表失败，分类名称可能无法正确显示'));
+	}
+}
+
+// 根据分类ID获取分类名称
+function getCategoryName(categoryId: any): string {
+	try {
+		if (!categoryId || !Array.isArray(batchUpload.categoryList)) {
+			return t('未知分类');
+		}
+		
+		const category = batchUpload.categoryList.find(cat => cat.id === categoryId);
+		return category ? category.name : t('未知分类');
+	} catch (error) {
+		console.error('获取分类名称失败:', error);
+		return t('未知分类');
+	}
+}
+
 // 打开批量上传对话框
-function openBatchUpload() {
+async function openBatchUpload() {
 	try {
 		batchUpload.visible = true;
 		batchUpload.imageUrls = [];
@@ -512,9 +550,12 @@ function openBatchUpload() {
 			categoryId: null,
 			status: 1,
 			startOrderNum: 10,
-			orderStep: 10,
+			orderStep: 1,
 			description: "",
 		};
+		
+		// 加载分类列表
+		await loadCategoryList();
 		
 		// 确保上传组件引用被正确重置
 		if (batchUploadRef.value) {
@@ -829,7 +870,7 @@ function resetBatchSettings() {
 		categoryId: null,
 		status: 1,
 		startOrderNum: 10,
-		orderStep: 10,
+		orderStep: 1,
 		description: "",
 	};
 	ElMessage.success(t("批量设置已重置"));
@@ -897,11 +938,12 @@ async function submitBatchUpload() {
 		// 重置批量上传数据
 		batchUpload.imageUrls = [];
 		batchUpload.previewList = [];
+		batchUpload.categoryList = [];
 		batchUpload.batchSettings = {
 			categoryId: null,
 			status: 1,
 			startOrderNum: 10,
-			orderStep: 10,
+			orderStep: 1,
 			description: "",
 		};
 		
@@ -961,13 +1003,14 @@ onBeforeUnmount(() => {
 		// 清理批量上传数据
 		batchUpload.imageUrls = [];
 		batchUpload.previewList = [];
+		batchUpload.categoryList = [];
 		batchUpload.visible = false;
 		batchUpload.loading = false;
 		batchUpload.batchSettings = {
 			categoryId: null,
 			status: 1,
 			startOrderNum: 10,
-			orderStep: 10,
+			orderStep: 1,
 			description: "",
 		};
 		
@@ -1109,5 +1152,23 @@ onBeforeUnmount(() => {
 
 :deep(.cl-upload__demo:hover) {
 	border-color: var(--el-color-primary);
+}
+
+/* 分类显示样式 */
+.category-display {
+	display: inline-block;
+	padding: 4px 8px;
+	background-color: #f0f9ff;
+	border: 1px solid #bfdbfe;
+	border-radius: 4px;
+	color: #1e40af;
+	font-size: 14px;
+	font-weight: 500;
+}
+
+.category-display.no-category {
+	background-color: #fef2f2;
+	border-color: #fecaca;
+	color: #dc2626;
 }
 </style>
