@@ -216,7 +216,7 @@ import { useCool } from "/@/cool";
 import { useI18n } from "vue-i18n";
 import { reactive, ref, watch, onBeforeUnmount } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { Upload, Plus, Delete } from "@element-plus/icons-vue";
+import { Upload, Plus, Delete, Top } from "@element-plus/icons-vue";
 import CategorySelect from "/$/shop/components/category-select.vue";
 
 const { service } = useCool();
@@ -429,6 +429,10 @@ const Upsert = useUpsert({
 
 // cl-table
 const Table = useTable({
+	// 为表格行添加数据属性，用于CSS样式识别置顶商品
+	rowProps: ({ row }) => ({
+		'data-order-num': row.orderNum
+	}),
 	columns: [
 		{ type: "selection" },
 		{ label: t("分类ID"), prop: "categoryId", minWidth: 100 },
@@ -458,6 +462,12 @@ const Table = useTable({
 			prop: "orderNum",
 			minWidth: 140,
 			sortable: "custom",
+			formatter: (row) => {
+				if (row.orderNum === 0) {
+					return `🔝 ${row.orderNum} (置顶)`;
+				}
+				return row.orderNum;
+			}
 		},
 		{
 			label: t("创建时间"),
@@ -473,7 +483,21 @@ const Table = useTable({
 			sortable: "custom",
 			component: { name: "cl-date-text" },
 		},
-		{ type: "op", buttons: ["edit", "delete"] },
+		{ 
+			type: "op", 
+			width: 200,
+			buttons: ({ scope }) => [
+				{
+					label: scope.row.orderNum === 0 ? t("已置顶") : t("置顶"),
+					type: scope.row.orderNum === 0 ? "success" : "warning",
+					size: "small",
+					disabled: scope.row.orderNum === 0,
+					onClick: () => handleMoveToTop(scope.row)
+				},
+				"edit", 
+				"delete"
+			] 
+		},
 	],
 });
 
@@ -1108,6 +1132,126 @@ watch(
 	{ deep: true }
 );
 
+// 一键置顶功能
+async function handleMoveToTop(row: any) {
+	try {
+		// 参数验证
+		if (!row || !row.id || !row.categoryId) {
+			ElMessage.error(t('商品信息不完整，无法置顶'));
+			return;
+		}
+		
+		// 如果当前商品已经是排序值为0，提示用户
+		if (row.orderNum === 0) {
+			ElMessage.info(t('该商品已经是置顶状态'));
+			return;
+		}
+		
+		// 确认对话框
+		const confirmResult = await ElMessageBox.confirm(
+			t('确定要将此商品置顶吗？') + '\n\n' +
+			t('置顶后的变化：') + '\n' +
+			t('• 该商品排序值将变为 0，显示在同分类最前面') + '\n' +
+			t('• 同分类中排序值小于等于当前商品的其他商品排序值将自动 +1') + '\n' +
+			t('• 此操作不可撤销，但可以通过编辑重新调整排序'),
+			t('置顶确认'),
+			{
+				confirmButtonText: t('确定置顶'),
+				cancelButtonText: t('取消'),
+				type: 'warning',
+				dangerouslyUseHTMLString: false,
+				customClass: 'move-to-top-confirm'
+			}
+		).catch(() => false);
+		
+		if (!confirmResult) {
+			return;
+		}
+		
+		console.log('开始执行置顶操作，商品ID:', row.id, '分类ID:', row.categoryId);
+		
+		// 显示加载提示
+		const loading = ElMessage({
+			message: t('正在置顶商品...'),
+			type: 'info',
+			duration: 0, // 不自动关闭
+		});
+		
+		try {
+			// 1. 获取同分类下所有商品，按排序值升序排列
+			const sameCategory = await service.shop.goods.page({
+				page: 1,
+				size: 1000, // 获取足够多的数据
+				categoryId: row.categoryId,
+				orderBy: 'orderNum',
+				orderType: 'asc' // 按排序值升序排列
+			});
+			
+			if (!sameCategory || !sameCategory.list) {
+				throw new Error('获取同分类商品列表失败');
+			}
+			
+			// 2. 筛选出需要调整排序的商品（排序值小于等于当前商品的其他商品）
+			const goodsToUpdate = sameCategory.list.filter(item => 
+				item.id !== row.id && item.orderNum <= row.orderNum
+			);
+			
+			console.log('需要调整排序的商品数量:', goodsToUpdate.length);
+			
+			// 3. 批量更新这些商品的排序值（每个+1）
+			const updatePromises = goodsToUpdate.map(item => 
+				service.shop.goods.update({
+					id: item.id,
+					orderNum: item.orderNum + 1
+				}).catch(error => {
+					console.error(`更新商品 ${item.id} 排序失败:`, error);
+					return { error: true, id: item.id };
+				})
+			);
+			
+			// 4. 将当前商品的排序值设为0
+			updatePromises.push(
+				service.shop.goods.update({
+					id: row.id,
+					orderNum: 0
+				}).catch(error => {
+					console.error(`置顶商品 ${row.id} 失败:`, error);
+					throw error;
+				})
+			);
+			
+			// 5. 等待所有更新操作完成
+			const results = await Promise.all(updatePromises);
+			
+			// 6. 检查是否有失败的操作
+			const failedUpdates = results.filter(result => result && result.error);
+			
+			if (failedUpdates.length > 0) {
+				console.warn('部分商品排序更新失败:', failedUpdates);
+				ElMessage.warning(t(`置顶成功，但有 ${failedUpdates.length} 个商品排序调整失败`));
+			} else {
+				ElMessage.success(t('商品置顶成功'));
+			}
+			
+			// 7. 刷新列表显示最新数据
+			refresh();
+			
+			console.log('置顶操作完成');
+			
+		} catch (error) {
+			console.error('置顶操作失败:', error);
+			ElMessage.error(t('置顶失败，请检查网络连接或联系管理员'));
+		} finally {
+			// 关闭加载提示
+			loading.close();
+		}
+		
+	} catch (error) {
+		console.error('置顶操作异常:', error);
+		ElMessage.error(t('置顶操作异常，请重试'));
+	}
+}
+
 // 组件卸载时的清理逻辑
 onBeforeUnmount(() => {
 	try {
@@ -1309,5 +1453,56 @@ onBeforeUnmount(() => {
 	background-color: #fef2f2;
 	border-color: #fecaca;
 	color: #dc2626;
+}
+
+/* 置顶按钮样式优化 */
+:deep(.el-table .el-button--warning.is-disabled) {
+	background-color: #f0f9ff;
+	border-color: #bfdbfe;
+	color: #1e40af;
+}
+
+:deep(.el-table .el-button--success.is-disabled) {
+	background-color: #f0fdf4;
+	border-color: #bbf7d0;
+	color: #15803d;
+	cursor: not-allowed;
+}
+
+/* 置顶商品行高亮 */
+:deep(.el-table__row[data-order-num="0"]) {
+	background-color: #fffbeb;
+}
+
+:deep(.el-table__row[data-order-num="0"]:hover) {
+	background-color: #fef3c7;
+}
+
+/* 置顶确认对话框样式 */
+:deep(.move-to-top-confirm) {
+	.el-message-box__message {
+		white-space: pre-line;
+		line-height: 1.6;
+		font-size: 14px;
+	}
+	
+	.el-message-box__btns {
+		padding-top: 20px;
+	}
+	
+	.el-button--primary {
+		background-color: #e6a23c;
+		border-color: #e6a23c;
+	}
+	
+	.el-button--primary:hover {
+		background-color: #eebe77;
+		border-color: #eebe77;
+	}
+}
+
+/* 置顶商品行高亮 */
+:deep(.el-table__row[data-order-num="0"]) {
+	background-color: #fffbeb;
 }
 </style>
