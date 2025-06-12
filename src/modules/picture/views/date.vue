@@ -154,7 +154,12 @@
 											format="YYYY-MM-DD"
 											value-format="YYYY-MM-DD"
 											:placeholder="t('请选择日期')"
+											@change="validatePreviewDate(item, index)"
+											:class="{ 'date-error': item.dateError }"
 										/>
+										<div v-if="item.dateError" class="date-error-message">
+											{{ item.dateErrorMessage }}
+										</div>
 									</el-form-item>
 									<el-form-item :label="t('状态')">
 										<el-radio-group v-model="item.status">
@@ -234,6 +239,83 @@ const options = reactive({
 	],
 });
 
+// 检查日期是否已存在的函数
+async function checkDateExists(date: string, excludeId?: number): Promise<boolean> {
+	try {
+		if (!date) return false;
+		
+		console.log('检查日期是否存在:', { date, excludeId, mode: excludeId ? '编辑模式' : '新增模式' });
+		
+		// 调用后端接口检查日期是否已存在
+		const result = await service.picture.date.page({
+			page: 1,
+			size: 1,
+			date: date
+		});
+		
+		// 如果是编辑模式，排除当前记录
+		if (excludeId && result.list && result.list.length > 0) {
+			const exists = result.list.some((item: any) => item.id !== excludeId);
+			console.log('编辑模式检查结果:', { exists, totalFound: result.list.length });
+			return exists;
+		}
+		
+		// 新增模式：任何存在的记录都算冲突
+		const exists = result.list && result.list.length > 0;
+		console.log('新增模式检查结果:', { exists, totalFound: result.list?.length || 0 });
+		return exists;
+	} catch (error) {
+		console.error('检查日期是否存在失败:', error);
+		return false;
+	}
+}
+
+// 判断当前是否为新增模式
+function isAddMode(): boolean {
+	return !Upsert.value?.form?.id;
+}
+
+// 验证预览列表中的日期
+async function validatePreviewDate(item: any, currentIndex: number) {
+	try {
+		// 清除之前的错误状态
+		item.dateError = false;
+		item.dateErrorMessage = '';
+		
+		if (!item.date) {
+			return;
+		}
+		
+		// 检查在当前预览列表中是否有重复日期
+		const duplicateIndex = batchUpload.previewList.findIndex((previewItem, index) => 
+			index !== currentIndex && previewItem.date === item.date
+		);
+		
+		if (duplicateIndex !== -1) {
+			item.dateError = true;
+			item.dateErrorMessage = t('该日期在当前批次中重复');
+			return;
+		}
+		
+		// 检查数据库中是否已存在该日期
+		const exists = await checkDateExists(item.date);
+		if (exists) {
+			item.dateError = true;
+			item.dateErrorMessage = t('该日期已存在于数据库中');
+			return;
+		}
+		
+		// 如果没有错误，确保错误状态被清除
+		item.dateError = false;
+		item.dateErrorMessage = '';
+		
+	} catch (error) {
+		console.error('验证预览日期失败:', error);
+		item.dateError = true;
+		item.dateErrorMessage = t('验证日期失败，请重试');
+	}
+}
+
 // cl-upsert
 const Upsert = useUpsert({
 	items: [
@@ -247,11 +329,70 @@ const Upsert = useUpsert({
 					type: "date",
 					format: "YYYY-MM-DD",
 					valueFormat: "YYYY-MM-DD",
-					placeholder: "请选择日期"
+					placeholder: "请选择日期",
+					// 添加实时验证
+					onChange: async (value: string) => {
+						if (value && Upsert.value?.form) {
+							try {
+								console.log('日期选择变化，开始验证:', value);
+								
+								// 获取当前记录ID（编辑模式下）
+								const currentId = Upsert.value.form.id;
+								const exists = await checkDateExists(value, currentId);
+								
+								if (exists) {
+									// 显示警告但不阻止用户继续操作
+									ElMessage.warning(t('该日期已存在，请选择其他日期'));
+								}
+							} catch (error) {
+								console.error('实时验证日期失败:', error);
+							}
+						}
+					}
 				} 
 			},
 			span: 12,
 			required: true,
+			// 添加自定义验证规则
+			rules: [
+				{
+					required: true,
+					message: t('请选择日期')
+				},
+				{
+					validator: async (rule: any, value: string, callback: Function) => {
+						if (!value) {
+							callback();
+							return;
+						}
+						
+						try {
+							// 获取当前编辑的记录ID（如果是编辑模式）
+							const currentId = Upsert.value?.form?.id;
+							const mode = currentId ? '编辑' : '新增';
+							
+							console.log(`${mode}模式日期验证:`, { value, currentId });
+							
+							const exists = await checkDateExists(value, currentId);
+							
+							if (exists) {
+								const message = currentId 
+									? t('该日期已被其他记录使用，请选择其他日期')
+									: t('该日期已存在，请选择其他日期');
+								console.log(`${mode}模式验证失败:`, message);
+								callback(new Error(message));
+							} else {
+								console.log(`${mode}模式验证通过`);
+								callback();
+							}
+						} catch (error) {
+							console.error('验证日期唯一性失败:', error);
+							callback(new Error(t('验证日期失败，请重试')));
+						}
+					},
+					trigger: 'blur'
+				}
+			]
 		},
 		{
 			label: t("图片"),
@@ -317,13 +458,49 @@ const Upsert = useUpsert({
 			span: 12,
 		},
 	],
+	
+	// 添加提交前的最终验证
+	onSubmit: async (data, { next, done, close }) => {
+		try {
+			// 在提交前再次验证日期唯一性
+			if (data.date) {
+				const currentId = Upsert.value?.form?.id;
+				const mode = currentId ? '编辑' : '新增';
+				
+				console.log(`${mode}模式提交前最终验证:`, { date: data.date, currentId });
+				
+				const exists = await checkDateExists(data.date, currentId);
+				
+				if (exists) {
+					const message = currentId 
+						? t('该日期已被其他记录使用，无法保存')
+						: t('该日期已存在，无法新增');
+					
+					console.log(`${mode}模式提交验证失败:`, message);
+					ElMessage.error(message);
+					done(); // 关闭加载状态但不关闭窗口
+					return;
+				}
+				
+				console.log(`${mode}模式提交验证通过，继续保存`);
+			}
+			
+			// 验证通过，继续提交
+			next(data);
+			
+		} catch (error) {
+			console.error('提交前验证失败:', error);
+			ElMessage.error(t('验证失败，请重试'));
+			done(); // 关闭加载状态但不关闭窗口
+		}
+	}
 });
 
 // cl-table
 const Table = useTable({
 	columns: [
 		{ type: "selection" },
-		{ label: t("日期"), prop: "date", minWidth: 120, component: { name: "cl-date-text", props: { format: "YYYY-MM-DD" } } },
+		{ label: t("日期"), prop: "date", minWidth: 120,sortable: "asc", component: { name: "cl-date-text", props: { format: "YYYY-MM-DD" } } },
 		{ label: t("图片"), prop: "picture", minWidth: 120, component: { name: "cl-image", props: { size: 60, preview: true } } },
 		{
 			label: t("状态"),
@@ -358,6 +535,12 @@ const Search = useSearch();
 const Crud = useCrud(
 	{
 		service: service.picture.date,
+		
+		// 监听删除事件，删除后刷新数据确保日期验证准确性
+		onDelete: (selection, { next }) => {
+			console.log('删除记录，将刷新数据以确保日期验证准确性');
+			next(selection);
+		}
 	},
 	(app) => {
 		app.refresh();
@@ -591,6 +774,8 @@ async function updatePreviewList(urls: string[]) {
 					date: existing?.date || batchUpload.batchSettings.startDate || '',
 					status: existing?.status !== undefined ? existing.status : 1,
 					remark: existing?.remark || "",
+					dateError: false, // 初始化日期错误状态
+					dateErrorMessage: '', // 初始化错误消息
 				};
 				
 				// 如果设置了起始日期，自动计算日期
@@ -664,44 +849,91 @@ function removePreviewItem(index: number) {
 }
 
 // 应用批量设置
-function applyBatchSettings() {
+async function applyBatchSettings() {
 	const settings = batchUpload.batchSettings;
 	
-	// 确认对话框
-	ElMessageBox.confirm(
-		t("确定要将批量设置应用到所有图片吗？这将覆盖当前的个别设置。"),
-		t("批量设置确认"),
-		{
-			confirmButtonText: t("确定"),
-			cancelButtonText: t("取消"),
-			type: "warning",
-		}
-	).then(() => {
-		// 应用设置到所有预览项
-		batchUpload.previewList.forEach((item, index) => {
-			// 应用状态设置
-			if (settings.status !== null && settings.status !== undefined) {
-				item.status = settings.status;
-			}
-			
-			// 应用日期设置（起始日期 + 索引 * 间隔）
-			if (settings.startDate) {
+	try {
+		// 如果设置了起始日期，先检查生成的日期是否会有冲突
+		if (settings.startDate) {
+			const generatedDates = [];
+			for (let index = 0; index < batchUpload.previewList.length; index++) {
 				const startDate = new Date(settings.startDate);
 				const targetDate = new Date(startDate);
 				targetDate.setDate(startDate.getDate() + (index * settings.dateStep));
-				item.date = targetDate.toISOString().split('T')[0];
+				const dateStr = targetDate.toISOString().split('T')[0];
+				generatedDates.push(dateStr);
 			}
 			
-			// 如果设置了统一备注，则应用
-			if (settings.remark) {
-				item.remark = settings.remark;
+			// 检查生成的日期中是否有重复
+			const duplicates = generatedDates.filter((date, index) => generatedDates.indexOf(date) !== index);
+			if (duplicates.length > 0) {
+				const uniqueDuplicates = [...new Set(duplicates)];
+				ElMessage.error(t(`批量设置会产生重复日期: ${uniqueDuplicates.join(', ')}，请调整起始日期或日期间隔`));
+				return;
 			}
-		});
+			
+			// 检查数据库中是否已存在这些日期
+			const existingDatesCheck = await Promise.all(
+				generatedDates.map(async (date) => {
+					const exists = await checkDateExists(date);
+					return { date, exists };
+				})
+			);
+			
+			const existingDates = existingDatesCheck.filter(item => item.exists);
+			if (existingDates.length > 0) {
+				const existingDatesList = existingDates.map(item => item.date).join(', ');
+				ElMessage.error(t(`以下日期已存在于数据库中: ${existingDatesList}，请调整起始日期或日期间隔`));
+				return;
+			}
+		}
 		
-		ElMessage.success(t("批量设置已应用到所有图片"));
-	}).catch(() => {
-		// 用户取消操作
-	});
+		// 确认对话框
+		ElMessageBox.confirm(
+			t("确定要将批量设置应用到所有图片吗？这将覆盖当前的个别设置。"),
+			t("批量设置确认"),
+			{
+				confirmButtonText: t("确定"),
+				cancelButtonText: t("取消"),
+				type: "warning",
+			}
+		).then(() => {
+			// 应用设置到所有预览项
+			batchUpload.previewList.forEach((item, index) => {
+				// 应用状态设置
+				if (settings.status !== null && settings.status !== undefined) {
+					item.status = settings.status;
+				}
+				
+				// 应用日期设置（起始日期 + 索引 * 间隔）
+				if (settings.startDate) {
+					const startDate = new Date(settings.startDate);
+					const targetDate = new Date(startDate);
+					targetDate.setDate(startDate.getDate() + (index * settings.dateStep));
+					item.date = targetDate.toISOString().split('T')[0];
+				}
+				
+				// 如果设置了统一备注，则应用
+				if (settings.remark) {
+					item.remark = settings.remark;
+				}
+			});
+			
+			// 重新验证所有日期
+			setTimeout(async () => {
+				for (let i = 0; i < batchUpload.previewList.length; i++) {
+					await validatePreviewDate(batchUpload.previewList[i], i);
+				}
+			}, 100);
+			
+			ElMessage.success(t("批量设置已应用到所有图片"));
+		}).catch(() => {
+			// 用户取消操作
+		});
+	} catch (error) {
+		console.error('应用批量设置失败:', error);
+		ElMessage.error(t('应用批量设置失败，请重试'));
+	}
 }
 
 // 重置批量设置
@@ -731,6 +963,37 @@ async function submitBatchUpload() {
 		
 		if (invalidItems.length > 0) {
 			ElMessage.error(t(`请填写所有图片的名称和日期，还有 ${invalidItems.length} 个图片信息不完整`));
+			return;
+		}
+
+		// 检查是否有日期验证错误
+		const dateErrorItems = batchUpload.previewList.filter(item => item.dateError);
+		if (dateErrorItems.length > 0) {
+			ElMessage.error(t(`存在日期错误，请修正后重试。共 ${dateErrorItems.length} 个图片的日期有问题`));
+			return;
+		}
+
+		// 检查批量上传中是否有重复日期
+		const dates = batchUpload.previewList.map(item => item.date);
+		const duplicateDates = dates.filter((date, index) => dates.indexOf(date) !== index);
+		if (duplicateDates.length > 0) {
+			const uniqueDuplicates = [...new Set(duplicateDates)];
+			ElMessage.error(t(`批量上传中存在重复日期: ${uniqueDuplicates.join(', ')}，请修改后重试`));
+			return;
+		}
+
+		// 检查数据库中是否已存在相同日期的记录
+		const existingDatesCheck = await Promise.all(
+			dates.map(async (date, index) => {
+				const exists = await checkDateExists(date);
+				return { date, index, exists };
+			})
+		);
+
+		const existingDates = existingDatesCheck.filter(item => item.exists);
+		if (existingDates.length > 0) {
+			const existingDatesList = existingDates.map(item => item.date).join(', ');
+			ElMessage.error(t(`以下日期已存在于数据库中: ${existingDatesList}，请修改后重试`));
 			return;
 		}
 
@@ -986,5 +1249,18 @@ onBeforeUnmount(() => {
 
 :deep(.cl-upload__demo:hover) {
 	border-color: var(--el-color-primary);
+}
+
+/* 日期验证错误样式 */
+.date-error :deep(.el-input__wrapper) {
+	border-color: var(--el-color-danger) !important;
+	box-shadow: 0 0 0 1px var(--el-color-danger) inset !important;
+}
+
+.date-error-message {
+	color: var(--el-color-danger);
+	font-size: 12px;
+	margin-top: 4px;
+	line-height: 1.2;
 }
 </style>
