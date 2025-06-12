@@ -102,11 +102,47 @@ const Upsert = useUpsert({
 		{
 			label: t("排序"),
 			prop: "orderNum",
-			component: { name: "el-input", props: { clearable: true } },
+			component: { name: "el-input-number", props: { clearable: true, min: 0 } },
 			span: 12,
 			required: true,
 		},
 	],
+
+	// 打开表单时的事件处理
+	async onOpen() {
+		// 只在新增模式下自动设置排序号
+		if (Upsert.value?.mode === 'add') {
+			try {
+				// 获取所有分类数据以找到最大排序号
+				const res = await service.shop.category.list();
+				
+				// 找到最大的排序号
+				let maxOrderNum = 0;
+				if (res && Array.isArray(res)) {
+					maxOrderNum = res.reduce((max, item) => {
+						const orderNum = item.orderNum || 0;
+						return orderNum > max ? orderNum : max;
+					}, 0);
+				}
+				
+				// 设置新的排序号为最大值加1
+				const newOrderNum = maxOrderNum + 1;
+				
+				// 设置表单的排序字段值
+				if (Upsert.value?.form) {
+					Upsert.value.form.orderNum = newOrderNum;
+				}
+				
+				console.log(`自动设置排序号: ${newOrderNum} (当前最大排序号: ${maxOrderNum})`);
+			} catch (error) {
+				console.error('获取最大排序号失败:', error);
+				// 如果获取失败，设置默认值为1
+				if (Upsert.value?.form) {
+					Upsert.value.form.orderNum = 1;
+				}
+			}
+		}
+	}
 });
 
 // cl-table
@@ -146,7 +182,7 @@ const Table = useTable({
 			minWidth: 120,
 			dict: options.type,
 		},
-		{ label: t("排序"), prop: "orderNum", minWidth: 120 },
+		{ label: t("排序"), prop: "orderNum",sortable: "desc", minWidth: 120 },
 		{
 			label: t("创建时间"),
 			prop: "createTime",
